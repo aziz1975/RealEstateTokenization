@@ -2,168 +2,169 @@
 pragma solidity ^0.8.20;
 
 /**
- * ----------------------------------------------------------------------------
- *  MultiPropertyFractionalAdvanced
- * ----------------------------------------------------------------------------
- *  ▸ Minimal fractional‑ownership contract for **one** real‑estate asset.
- *  ▸ Fixed supply issued on purchase, ERC‑20 compatible.
- *  ▸ Rental / income TRX is pooled and claimable by holders pro‑rata.
- *  ▸ NO governance / voting – keeps surface area small for audits.
- * ----------------------------------------------------------------------------*/
+ * --------------------------------------------------------------------------
+ *  MultiPropertyFractionalAdvanced – 100 % USDT
+ * --------------------------------------------------------------------------
+ *  • Fractions are sold for, and dividends are paid in, the same ERC‑20
+ *    payment token (USDT on TRON, 6 decimals).
+ *  • No native TRX is used anywhere.
+ * ------------------------------------------------------------------------ */
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract MultiPropertyFractionalAdvanced is ERC20, Ownable, ReentrancyGuard {
-    /* --------------------------------------------------------------------- */
-    /*  Immutable configuration                                              */
-    /* --------------------------------------------------------------------- */
+    using SafeERC20 for IERC20;
 
-    uint256 public immutable pricePerFractionSun;  // 1 TRX = 1e6 SUN
-    uint256 public immutable maxFractions;         // whole‑unit fractions
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Immutable configuration                                          */
+    /* ────────────────────────────────────────────────────────────────── */
 
-    string  public propertyAddress;                // e.g. "123 Lakeview Dr, Austin TX"
-    string  public propertyURI;                    // off‑chain/IPFS JSON
+    IERC20  public immutable paymentToken;     // USDT (6 decimals)
+    uint256 public immutable pricePerFraction; // micro‑USDT (6 dec.)
+    uint256 public immutable maxFractions;     // whole‑unit fractions
 
-    /* --------------------------------------------------------------------- */
-    /*  Dividend accounting                                                  */
-    /* --------------------------------------------------------------------- */
+    string  public propertyAddress;
+    string  public propertyURI;
 
-    uint256 private constant MAGNITUDE = 1e18;     // precision helper
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Dividend accounting (all in USDT)                                */
+    /* ────────────────────────────────────────────────────────────────── */
+
+    uint256 private constant MAGNITUDE = 1e18;
 
     uint256 public accumDividendPerShare;          // scaled by MAGNITUDE
-    mapping(address => uint256) private credit;    // bookkeeping for each holder
-    uint256 public totalDividends;                 // lifetime TRX distributed
+    mapping(address => uint256) private credit;    // withdrawals ledger
+    uint256 public totalDividends;                 // lifetime USDT distributed
 
-    /* --------------------------------------------------------------------- */
-    /*  Events                                                               */
-    /* --------------------------------------------------------------------- */
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Events                                                           */
+    /* ────────────────────────────────────────────────────────────────── */
 
-    event FractionsPurchased(address indexed buyer, uint256 fractions, uint256 trxPaid);
-    event DividendsDeposited(address indexed depositor, uint256 amount);
-    event DividendsClaimed  (address indexed claimer,   uint256 amount);
+    event FractionsPurchased (address indexed buyer, uint256 fractions, uint256 usdtPaid);
+    event DividendsDeposited(address indexed depositor, uint256 usdtAmount);
+    event DividendsClaimed  (address indexed claimer,   uint256 usdtAmount);
 
-    /* --------------------------------------------------------------------- */
-    /*  Constructor                                                          */
-    /* --------------------------------------------------------------------- */
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Constructor                                                      */
+    /* ────────────────────────────────────────────────────────────────── */
 
     constructor(
-        string memory _name,
-        string memory _symbol,
+        string  memory _name,
+        string  memory _symbol,
         uint256 _maxFractions,
-        uint256 _pricePerFractionSun,
-        string memory _propertyAddress,
-        string memory _propertyURI
+        uint256 _pricePerFraction,       // in micro‑USDT
+        address _paymentToken,           // USDT contract address
+        string  memory _propertyAddress,
+        string  memory _propertyURI
     ) ERC20(_name, _symbol) {
-        require(_maxFractions > 0, "Fractions = 0");
-        require(_pricePerFractionSun > 0, "Price = 0");
+        require(_maxFractions     > 0,             "Fractions = 0");
+        require(_pricePerFraction > 0,             "Price = 0");
+        require(_paymentToken     != address(0),   "Token = 0x0");
 
-        maxFractions        = _maxFractions;
-        pricePerFractionSun = _pricePerFractionSun;
-        propertyAddress     = _propertyAddress;
-        propertyURI         = _propertyURI;
+        maxFractions     = _maxFractions;
+        pricePerFraction = _pricePerFraction;
+        paymentToken     = IERC20(_paymentToken);
+
+        propertyAddress  = _propertyAddress;
+        propertyURI      = _propertyURI;
     }
 
-    /* --------------------------------------------------------------------- */
-    /*  Purchase flow                                                        */
-    /* --------------------------------------------------------------------- */
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Purchase flow                                                    */
+    /* ────────────────────────────────────────────────────────────────── */
 
-    function buy(uint256 fractions) external payable nonReentrant {
+    function buy(uint256 fractions) external nonReentrant {
         require(fractions > 0, "Amount = 0");
         require(totalFractionsSold() + fractions <= maxFractions, "Soldout");
 
-        uint256 cost = fractions * pricePerFractionSun;
-        require(msg.value == cost, "Wrong TRX amount");
+        uint256 cost = fractions * pricePerFraction;
 
-        // Mint fractions (scaled to 18 decimals like regular ERC‑20)
+        // Pull USDT from buyer
+        paymentToken.safeTransferFrom(msg.sender, address(this), cost);
+
+        // Mint fractional tokens (18 decimals)
         _mint(msg.sender, fractions * 10 ** decimals());
 
-        // Initialise dividend credit so new holder isn't owed past payouts
+        // Initialise dividend credit
         credit[msg.sender] += (fractions * 10 ** decimals()) * accumDividendPerShare / MAGNITUDE;
 
         emit FractionsPurchased(msg.sender, fractions, cost);
     }
 
-    /* --------------------------------------------------------------------- */
-    /*  Dividend handling                                                    */
-    /* --------------------------------------------------------------------- */
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Dividend handling (USDT)                                         */
+    /* ────────────────────────────────────────────────────────────────── */
 
-    /**
-     * External deposit by owner – rental income, sale proceeds, etc.
-     */
-    function depositDividends() external payable onlyOwner nonReentrant {
-        _allocateDividends(msg.value);
-        emit DividendsDeposited(msg.sender, msg.value);
+    /// Owner deposits rental income / sale proceeds in USDT
+    function depositDividends(uint256 amount) external onlyOwner nonReentrant {
+        require(amount > 0, "Zero deposit");
+
+        // Pull USDT from owner
+        paymentToken.safeTransferFrom(msg.sender, address(this), amount);
+
+        _allocateDividends(amount);
+        emit DividendsDeposited(msg.sender, amount);
     }
 
-    /**
-     * Anyone sending TRX directly is treated as depositing dividends.
-     */
-    receive() external payable {
-        _allocateDividends(msg.value);
-        emit DividendsDeposited(msg.sender, msg.value);
-    }
-
-    /** Compute pending payout for any account */
     function claimable(address account) public view returns (uint256) {
         uint256 gross = balanceOf(account) * accumDividendPerShare / MAGNITUDE;
         if (gross <= credit[account]) return 0;
         return gross - credit[account];
     }
 
-    /** Withdraw caller's pending dividends */
     function claim() external nonReentrant {
         uint256 amount = claimable(msg.sender);
         require(amount > 0, "Nothing to claim");
 
         credit[msg.sender] += amount;
-        (bool ok, ) = msg.sender.call{value: amount}("");
-        require(ok, "TRX transfer failed");
+        paymentToken.safeTransfer(msg.sender, amount);
 
         emit DividendsClaimed(msg.sender, amount);
     }
 
-    /** Internal: update global & per‑share accounting */
     function _allocateDividends(uint256 amount) internal {
-        require(amount > 0, "Zero deposit");
         require(totalSupply() > 0, "No supply");
-
         accumDividendPerShare += (amount * MAGNITUDE) / totalSupply();
         totalDividends        += amount;
     }
 
-    /* --------------------------------------------------------------------- */
-    /*  Transfer hook – keeps credits in sync                                */
-    /* --------------------------------------------------------------------- */
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Transfer hook                                                    */
+    /* ────────────────────────────────────────────────────────────────── */
 
     function _afterTokenTransfer(address from, address to, uint256) internal override {
         if (from != address(0)) {
             credit[from] = balanceOf(from) * accumDividendPerShare / MAGNITUDE;
         }
         if (to != address(0)) {
-            credit[to]   = balanceOf(to) * accumDividendPerShare / MAGNITUDE;
+            credit[to]   = balanceOf(to)   * accumDividendPerShare / MAGNITUDE;
         }
     }
 
-    /* --------------------------------------------------------------------- */
-    /*  Owner utilities                                                      */
-    /* --------------------------------------------------------------------- */
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Owner utilities                                                  */
+    /* ────────────────────────────────────────────────────────────────── */
 
-    function withdrawProceeds(uint256 amountSun) external onlyOwner nonReentrant {
-        uint256 available = address(this).balance - pendingDividends();
-        require(amountSun <= available, "Insufficient proceeds");
-        (bool ok, ) = owner().call{value: amountSun}("");
-        require(ok, "Transfer failed");
+    /// Withdraw sale proceeds that are *not* owed as dividends
+    function withdrawProceeds(uint256 amount) external onlyOwner nonReentrant {
+        uint256 available = paymentToken.balanceOf(address(this)) - pendingDividends();
+        require(amount <= available, "Insufficient proceeds");
+        paymentToken.safeTransfer(owner(), amount);
     }
 
     function pendingDividends() public view returns (uint256) {
-        return totalSupply() * accumDividendPerShare / MAGNITUDE - credit[address(0)] - credit[address(this)];
+        return totalSupply() * accumDividendPerShare / MAGNITUDE
+             - credit[address(0)]
+             - credit[address(this)];
     }
 
-    /* --------------------------------------------------------------------- */
-    /*  Read‑only helpers                                                    */
-    /* --------------------------------------------------------------------- */
+    /* ────────────────────────────────────────────────────────────────── */
+    /*  Read‑only helpers                                                */
+    /* ────────────────────────────────────────────────────────────────── */
 
     function totalFractionsSold() public view returns (uint256) {
         return totalSupply() / 10 ** decimals();
@@ -173,8 +174,12 @@ contract MultiPropertyFractionalAdvanced is ERC20, Ownable, ReentrancyGuard {
         return maxFractions - totalFractionsSold();
     }
 
-    function getPriceSun() external view returns (uint256) {
-        return pricePerFractionSun;
+    function getPrice() external view returns (uint256) {
+        return pricePerFraction;
+    }
+
+    function getPaymentToken() external view returns (address) {
+        return address(paymentToken);
     }
 
     function getPropertyInfo() external view returns (string memory, string memory) {
