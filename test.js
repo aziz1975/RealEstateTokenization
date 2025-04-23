@@ -25,7 +25,7 @@ if (!TEST_KEY) {
 /* ───────────────────────────────────────────────────────────────── */
 
 const FRACTIONS_TO_BUY = 2n;       // whole‑unit fractions
-const DIVIDEND_USDT    = 200n;     // rent income in USDT (whole units)
+const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
 
 /* ───────────────────────────────────────────────────────────────── */
 /*  Main                                                            */
@@ -91,9 +91,9 @@ const DIVIDEND_USDT    = 200n;     // rent income in USDT (whole units)
   }
 
   /* -------- final balances -------------------------------------- */
-  const balFrac = await token.balanceOf(testAddr).call();
+  //const balFrac = await token.balanceOf(testAddr).call();
   const balUsdt = await usdtTest.balanceOf(testAddr).call();
 
-  console.log('Final fraction balance :', balFrac.toString(), 'wei‑fractions');
-  console.log('Wallet USDT balance    :', Number(balUsdt) / 1e6, 'USDT\n');
+  //console.log('Final fraction balance :', balFrac.toString(), 'wei‑fractions');
+  console.log('Wallet USDT balance ( investor’s wallet)    :', Number(balUsdt) / 1e6, 'USDT\n');
 })();
