@@ -24,7 +24,8 @@ if (!TEST_KEY) {
 /*  Constants                                                       */
 /* ───────────────────────────────────────────────────────────────── */
 
-const FRACTIONS_TO_BUY = 2n;       // whole‑unit fractions
+const FRACTIONS_TO_BUY = 4n;       // whole-unit fractions
+const FRACTIONS_TO_SELL = 3n;       // whole-unit fractions
 const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
 
 /* ───────────────────────────────────────────────────────────────── */
@@ -54,11 +55,11 @@ const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
   console.log('Token name           :', await token.name().call(), '\n');
 
   /* -------- buy fractions --------------------------------------- */
-  const price  = BigInt((await token.getPrice().call()).toString());     // micro‑USDT
-  const cost   = price * FRACTIONS_TO_BUY;                               // micro‑USDT
+  const price  = BigInt((await token.getPrice().call()).toString());     // micro-USDT
+  const cost   = price * FRACTIONS_TO_BUY;                               // micro-USDT
   const costUI = Number(cost) / 1e6;                                     // whole USDT
 
-  console.log(`Buying ${FRACTIONS_TO_BUY} fractions for ${costUI} USDT …`);
+  console.log(`Buying ${FRACTIONS_TO_BUY} fractions for ${costUI} USDT …`);
 
   // Approve spending
   let tx = await usdtTest.approve(CONTRACT, cost.toString()).send();
@@ -68,9 +69,15 @@ const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
   tx = await token.buy(Number(FRACTIONS_TO_BUY)).send();
   console.log('   ➜ buy()      tx id:', tx, '\n');
 
+  // Log balances immediately after buy
+  const balFracAfterBuy = await token.balanceOf(testAddr).call();
+  const balUsdtAfterBuy = await usdtTest.balanceOf(testAddr).call();
+  console.log('After buy — fraction balance:', Number(balFracAfterBuy) / 1e18, 'fractions');
+  console.log('After buy — USDT balance    :', Number(balUsdtAfterBuy) / 1e6,  'USDT\n');
+
   /* -------- deposit dividends (owner) --------------------------- */
-  const deposit = DIVIDEND_USDT * 1_000_000n;  // to micro‑USDT
-  console.log(`Depositing ${DIVIDEND_USDT} USDT rental income …`);
+  const deposit = DIVIDEND_USDT * 1_000_000n;  // to micro-USDT
+  console.log(`Depositing ${DIVIDEND_USDT} USDT rental income …`);
 
   // Owner approves then deposits
   tx = await usdtOwner.approve(CONTRACT, deposit.toString()).send();
@@ -90,10 +97,14 @@ const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
     console.log('   ➜ nothing to claim\n');
   }
 
-  /* -------- final balances -------------------------------------- */
-  //const balFrac = await token.balanceOf(testAddr).call();
-  const balUsdt = await usdtTest.balanceOf(testAddr).call();
+  /* -------- test sell fractions --------------------------------- */
+  console.log(`Selling ${FRACTIONS_TO_SELL} fractions back to contract …`);
+  tx = await token.sell(Number(FRACTIONS_TO_SELL)).send();
+  console.log('   ➜ sell()     tx id:', tx, '\n');
 
-  //console.log('Final fraction balance :', balFrac.toString(), 'wei‑fractions');
-  console.log('Wallet USDT balance ( investor’s wallet)    :', Number(balUsdt) / 1e6, 'USDT\n');
+  // Log balances immediately after sell
+  const balFracAfterSell = await token.balanceOf(testAddr).call();
+  const balUsdtAfterSell = await usdtTest.balanceOf(testAddr).call();
+  console.log('After sell — fraction balance:', Number(balFracAfterSell) / 1e18, 'fractions');
+  console.log('After sell — USDT balance    :', Number(balUsdtAfterSell) / 1e6,  'USDT\n');
 })();
