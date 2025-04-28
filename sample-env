@@ -1,1 +1,9 @@
-export PRIVATE_KEY_SHASTA=0000000000000000000000000000000000000000000000000000000000000001
+PRIVATE_KEY_DEVELOPMENT="your_local_development_private_key_here"
+PRIVATE_KEY_NILE="your_Nile_testnet_private_key_here"
+PRIVATE_KEY_MAINNET="your_mainnet_development_private_key_here"
+PRIVATE_KEY_SHASTA="your_shasta_testnet_private_key_here"
+OWNER_PRIVATE_KEY="your_owner_private_key_here"
+TEST_PRIVATE_KEY="your_test_private_key_here"
+FULL_NODE_DEVELOPMENT=http://127.0.0.1:9090
+CONTRACT_ADDRESS="address_of_contract_after_deployment"
+USDT_ADDRESS="address_of_mock_or_real_usdt"
