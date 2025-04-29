@@ -5,10 +5,10 @@ const { TronWeb } = require('tronweb');
 /*  Environment config                                              */
 /* ───────────────────────────────────────────────────────────────── */
 
-const FULL_NODE = process.env.FULL_NODE_DEVELOPMENT;
+const FULL_NODE = process.env.FULL_NODE_DEVELOPMENT;  //testnet or Development Runtime Environment
 const OWNER_KEY = process.env.OWNER_PRIVATE_KEY;
-const TEST_KEY  = process.env.TEST_PRIVATE_KEY;
-const CONTRACT  = process.env.CONTRACT_ADDRESS;   // deployed MultiProperty
+const TEST_KEY = process.env.TEST_PRIVATE_KEY;
+const CONTRACT = process.env.CONTRACT_ADDRESS;   // deployed MultiProperty
 const USDT_ADDR = process.env.USDT_ADDRESS;       // Mock or real USDT
 
 if (!FULL_NODE || !OWNER_KEY || !CONTRACT || !USDT_ADDR) {
@@ -26,7 +26,7 @@ if (!TEST_KEY) {
 
 const FRACTIONS_TO_BUY = 4n;       // whole-unit fractions
 const FRACTIONS_TO_SELL = 3n;       // whole-unit fractions
-const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
+const DIVIDEND_USDT = 300n;     // rent income in USDT (whole units)
 
 /* ───────────────────────────────────────────────────────────────── */
 /*  Main                                                            */
@@ -35,10 +35,10 @@ const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
 (async () => {
   /* -------- create signers -------------------------------------- */
   const ownerWeb = new TronWeb(FULL_NODE, FULL_NODE, FULL_NODE, OWNER_KEY);
-  const testWeb  = new TronWeb(FULL_NODE, FULL_NODE, FULL_NODE, TEST_KEY);
+  const testWeb = new TronWeb(FULL_NODE, FULL_NODE, FULL_NODE, TEST_KEY);
 
   const ownerAddr = ownerWeb.address.fromPrivateKey(OWNER_KEY);
-  const testAddr  = testWeb.address.fromPrivateKey(TEST_KEY);
+  const testAddr = testWeb.address.fromPrivateKey(TEST_KEY);
 
   console.log('\nOwner address        :', ownerAddr);
   console.log('Test  address        :', testAddr);
@@ -48,15 +48,15 @@ const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
 
   /* -------- connect contracts ----------------------------------- */
   const tokenAsOwner = await ownerWeb.contract().at(CONTRACT);
-  const token        = await testWeb.contract().at(CONTRACT);
-  const usdtOwner    = await ownerWeb.contract().at(USDT_ADDR);
-  const usdtTest     = await testWeb.contract().at(USDT_ADDR);
+  const token = await testWeb.contract().at(CONTRACT);
+  const usdtOwner = await ownerWeb.contract().at(USDT_ADDR);
+  const usdtTest = await testWeb.contract().at(USDT_ADDR);
 
   console.log('Token name           :', await token.name().call(), '\n');
 
   /* -------- buy fractions --------------------------------------- */
-  const price  = BigInt((await token.getPrice().call()).toString());     // micro-USDT
-  const cost   = price * FRACTIONS_TO_BUY;                               // micro-USDT
+  const price = BigInt((await token.getPrice().call()).toString());     // micro-USDT
+  const cost = price * FRACTIONS_TO_BUY;                               // micro-USDT
   const costUI = Number(cost) / 1e6;                                     // whole USDT
 
   console.log(`Buying ${FRACTIONS_TO_BUY} fractions for ${costUI} USDT …`);
@@ -73,7 +73,7 @@ const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
   const balFracAfterBuy = await token.balanceOf(testAddr).call();
   const balUsdtAfterBuy = await usdtTest.balanceOf(testAddr).call();
   console.log('After buy — fraction balance:', Number(balFracAfterBuy) / 1e18, 'fractions');
-  console.log('After buy — USDT balance    :', Number(balUsdtAfterBuy) / 1e6,  'USDT\n');
+  console.log('After buy — USDT balance    :', Number(balUsdtAfterBuy) / 1e6, 'USDT\n');
 
   /* -------- deposit dividends (owner) --------------------------- */
   const deposit = DIVIDEND_USDT * 1_000_000n;  // to micro-USDT
@@ -106,5 +106,5 @@ const DIVIDEND_USDT    = 300n;     // rent income in USDT (whole units)
   const balFracAfterSell = await token.balanceOf(testAddr).call();
   const balUsdtAfterSell = await usdtTest.balanceOf(testAddr).call();
   console.log('After sell — fraction balance:', Number(balFracAfterSell) / 1e18, 'fractions');
-  console.log('After sell — USDT balance    :', Number(balUsdtAfterSell) / 1e6,  'USDT\n');
+  console.log('After sell — USDT balance    :', Number(balUsdtAfterSell) / 1e6, 'USDT\n');
 })();
